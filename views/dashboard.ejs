@@ -1,10 +1,332 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>User Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <h1>Welcome,</h1>
-  <p>Your devices and videos will appear here.</p>
+<body class="bg-gradient-to-br from-cyan-100 to-blue-100 min-h-screen font-poppins text-gray-800 p-6">
+
+<% if (!user) { %>
+  <div class="max-w-md mx-auto mt-20 p-8 bg-white rounded-lg shadow-lg text-center">
+    <h1 class="text-2xl font-semibold mb-4">Welcome, Guest!</h1>
+    <p class="mb-6">Please <a href="/login" class="text-blue-600 underline">log in</a> or <a href="/register" class="text-blue-600 underline">register</a> to access your dashboard.</p>
+  </div>
+<% } else { %>
+  <div class="max-w-4xl mx-auto bg-white bg-opacity-90 rounded-lg shadow-lg p-8 space-y-10">
+    <!-- Header -->
+    <header class="flex flex-wrap items-center gap-4">
+      <img
+        src="<%= user.photos?.[0]?.value || '/default-profile.png' %>"
+        alt="Profile"
+        referrerpolicy="no-referrer"
+        onerror="this.onerror=null;this.src='/default-profile.png';"
+        class="w-16 h-16 rounded-full object-cover border-4 border-blue-500 bg-gray-100"
+      />
+      <h1 class="text-3xl font-semibold flex-grow">
+        Hello, <%= user.displayName || user.name || 'User' %>
+      </h1>
+      <form action="/logout" method="POST" class="ml-auto">
+        <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-semibold transition">
+          Logout
+        </button>
+      </form>
+    </header>
+
+    <!-- Devices Section -->
+    <section class="mb-10 bg-white p-6 rounded shadow-md max-w-3xl mx-auto">
+      <h2 class="text-2xl font-semibold mb-4 border-b border-gray-300 pb-2">Manage Devices</h2>
+      <div class="mb-6">
+        <button id="connect-device-btn" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
+          Connect New Camera Device
+        </button>
+        <video id="live-preview" autoplay playsinline class="mt-4 w-full rounded shadow-lg hidden border border-gray-300" style="max-height: 300px;"></video>
+      </div>
+      <% if (devices && devices.length > 0) { %>
+        <ul class="space-y-3">
+          <% devices.forEach(device => { %>
+            <li class="flex justify-between items-center bg-gray-50 p-4 rounded shadow">
+              <span><%= device.name %></span>
+              <button class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700" onclick="openLiveView('<%= device.id %>')">
+                Live View
+              </button>
+            </li>
+          <% }) %>
+        </ul>
+      <% } else { %>
+        <p>No devices connected yet.</p>
+      <% } %>
+    </section>
+
+    <!-- Your Devices List Fix -->
+    <section class="mb-10 bg-white p-6 rounded shadow-md max-w-3xl mx-auto">
+      <h2 class="text-2xl font-bold mb-4 text-gray-800 border-b pb-2 border-gray-300">Your Devices</h2>
+      <ul class="list-disc list-inside text-gray-700">
+        <% if (user.devices && user.devices.length) { %>
+          <% user.devices.forEach(device => { %>
+            <li><%= device.name %> - <%= device.status %></li>
+          <% }) %>
+        <% } else { %>
+          <li>No devices found.</li>
+        <% } %>
+      </ul>
+    </section>
+
+    <!-- Storage Options -->
+    <section>
+      <h2 class="text-2xl font-semibold mb-4 border-b border-gray-300 pb-2">Storage Options</h2>
+      <form id="storage-form" class="flex gap-6 items-center">
+        <label class="inline-flex items-center gap-2 cursor-pointer">
+          <input type="radio" name="storage" value="local" <%= user.storage === 'local' ? 'checked' : '' %> class="form-radio h-5 w-5 text-blue-600" />
+          <span>Local Storage</span>
+        </label>
+        <label class="inline-flex items-center gap-2 cursor-pointer">
+          <input type="radio" name="storage" value="cloud" <%= user.storage === 'cloud' ? 'checked' : '' %> class="form-radio h-5 w-5 text-blue-600" />
+          <span>Cloud Storage</span>
+        </label>
+        <button type="submit" class="ml-auto bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-semibold">Save</button>
+      </form>
+    </section>
+
+    <!-- Live Camera -->
+    <section class="p-4 bg-white shadow-md rounded-lg border border-gray-200">
+      <h2 class="text-2xl font-bold mb-4 text-gray-800 border-b pb-2 border-gray-300">Live Camera Feed</h2>
+      <div id="live-video" class="rounded-xl border border-gray-300 overflow-hidden shadow-inner max-w-full max-h-96 bg-black flex items-center justify-center text-white" style="height: 360px;">
+        <video id="camera-stream" autoplay muted playsinline class="w-full h-full object-cover"></video>
+      </div>
+      <div class="mt-6 flex flex-wrap items-center gap-4">
+        <label for="storageOption" class="text-sm font-medium text-gray-700">Save to:</label>
+        <select id="storageOption" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="local">Local</option>
+          <option value="cloud">Cloud</option>
+        </select>
+        <button id="startRecord" class="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"></path></svg>
+          <span>Start</span>
+        </button>
+        <button id="stopRecord" class="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg shadow transition" disabled>
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+          <span>Stop & Save</span>
+        </button>
+        <span id="recordTimer" class="ml-4 text-lg font-semibold text-red-600 hidden"></span>
+      </div>
+    </section>
+
+    <!-- Recorded Videos Section -->
+    <section>
+      <h2 class="text-2xl font-semibold mb-4 border-b border-gray-300 pb-2">Recorded Videos</h2>
+      <% if (!user.isSubscribed) { %>
+        <div class="bg-yellow-100 border border-yellow-300 p-6 rounded-lg text-yellow-800">
+          <p>You need to <strong>subscribe</strong> to access recorded videos.</p>
+          <a href="/subscribe">
+            <button id="subscribeBtn" class="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+              Subscribe Now
+            </button>
+          </a>
+        </div>
+      <% } else { %>
+        <% if (!recordedVideos || recordedVideos.length === 0) { %>
+          <p class="text-gray-500 italic">No recorded videos available.</p>
+        <% } else { %>
+          <ul class="space-y-3">
+            <% recordedVideos.forEach(video => { %>
+              <li class="flex justify-between bg-gray-50 p-4 rounded shadow items-center">
+                <span><%= video.name %></span>
+                <button class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded" onclick="playVideo('<%= video.url %>')">Play</button>
+              </li>
+            <% }); %>
+          </ul>
+          <div id="videoPlayerContainer" class="mt-6" style="display:none;">
+            <video id="videoPlayer" width="640" height="360" controls class="mx-auto rounded shadow">
+              Your browser does not support the video tag.
+            </video>
+            <div class="mt-4 flex justify-center gap-4">
+              <button onclick="fastForward()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Fast Forward</button>
+              <button onclick="slowMotion()" class="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600">Slow Motion</button>
+              <button onclick="pauseVideo()" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Pause</button>
+              <button onclick="resumeVideo()" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">Play</button>
+            </div>
+          </div>
+        <% } %>
+      <% } %>
+    </section>
+  </div>
+
+<script>
+  // Open live device feed in a new tab/window
+  function openLiveView(deviceId) {
+    window.open(`/devices/${deviceId}/live`, '_blank');
+  }
+
+  // Recorded video playback controls
+  const videoPlayer = document.getElementById('videoPlayer');
+  const videoPlayerContainer = document.getElementById('videoPlayerContainer');
+
+  function playVideo(src) {
+    videoPlayer.src = src;
+    videoPlayerContainer.style.display = 'block';
+    videoPlayer.play();
+  }
+
+  function fastForward() {
+    videoPlayer.playbackRate = 2.0;
+  }
+
+  function slowMotion() {
+    videoPlayer.playbackRate = 0.5;
+  }
+
+  function pauseVideo() {
+    videoPlayer.pause();
+  }
+
+  function resumeVideo() {
+    videoPlayer.playbackRate = 1.0;
+    videoPlayer.play();
+  }
+
+  // Storage options form submit (example POST via fetch)
+  document.getElementById('storage-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const storageType = document.querySelector('input[name="storage"]:checked').value;
+
+    fetch('/user/storage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storage: storageType }),
+    })
+    .then(res => {
+      if (res.ok) alert('Storage option saved!');
+      else alert('Failed to save storage option.');
+    });
+  });
+
+  // Connect new device - example to show live preview (just a placeholder)
+  const connectBtn = document.getElementById('connect-device-btn');
+  const livePreview = document.getElementById('live-preview');
+
+  connectBtn.addEventListener('click', async () => {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        livePreview.srcObject = stream;
+        livePreview.classList.remove('hidden');
+      } catch (err) {
+        alert('Unable to access camera: ' + err.message);
+      }
+    } else {
+      alert('Media Devices API not supported in this browser.');
+    }
+  });
+
+  // Recording functionality
+  let mediaRecorder;
+  let recordedChunks = [];
+  const startBtn = document.getElementById('startRecord');
+  const stopBtn = document.getElementById('stopRecord');
+  const cameraStream = document.getElementById('camera-stream');
+  const recordTimer = document.getElementById('recordTimer');
+
+  let timerInterval;
+  let seconds = 0;
+
+  async function startCamera() {
+    if (!cameraStream.srcObject) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        cameraStream.srcObject = stream;
+        return stream;
+      } catch (err) {
+        alert('Could not access camera: ' + err.message);
+        throw err;
+      }
+    }
+    return cameraStream.srcObject;
+  }
+
+  function startTimer() {
+    seconds = 0;
+    recordTimer.textContent = `Recording: 00:00`;
+    recordTimer.classList.remove('hidden');
+    timerInterval = setInterval(() => {
+      seconds++;
+      const mins = String(Math.floor(seconds / 60)).padStart(2, '0');
+      const secs = String(seconds % 60).padStart(2, '0');
+      recordTimer.textContent = `Recording: ${mins}:${secs}`;
+    }, 1000);
+  }
+
+  function stopTimer() {
+    clearInterval(timerInterval);
+    recordTimer.classList.add('hidden');
+  }
+
+  startBtn.addEventListener('click', async () => {
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+
+    try {
+      const stream = await startCamera();
+
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+
+      mediaRecorder.ondataavailable = event => {
+        if (event.data.size > 0) recordedChunks.push(event.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        // Save or upload blob here depending on user choice:
+        const storageOption = document.getElementById('storageOption').value;
+        if (storageOption === 'local') {
+          // Save locally (download)
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          a.download = `recording_${Date.now()}.webm`;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }, 100);
+        } else {
+          // Upload to cloud (example)
+          alert('Uploading to cloud is not implemented in this demo.');
+          // You would implement upload code here.
+        }
+      };
+
+      mediaRecorder.start();
+      startTimer();
+
+    } catch (err) {
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+    }
+  });
+
+  stopBtn.addEventListener('click', () => {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+    stopBtn.disabled = true;
+    startBtn.disabled = false;
+    stopTimer();
+
+    // Stop all tracks of camera stream to release camera
+    if (cameraStream.srcObject) {
+      cameraStream.srcObject.getTracks().forEach(track => track.stop());
+      cameraStream.srcObject = null;
+    }
+  });
+</script>
+
+<% } %>
+
 </body>
 </html>

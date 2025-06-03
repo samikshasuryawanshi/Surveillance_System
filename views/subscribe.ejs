@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Subscribe</title>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</head>
+<body>
+  <h1>Subscribe to Premium</h1>
+  <button id="subscribeBtn">Subscribe Now for ₹499</button>
+
+  <script>
+    document.getElementById('subscribeBtn').onclick = async function () {
+      try {
+        // 1. Request backend to create order
+        const res = await fetch('/api/razorpay/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error('Order creation failed');
+
+        const order = data.order;
+
+        // 2. Setup Razorpay options
+        const options = {
+          key: "<%= process.env.RAZORPAY_KEY_ID %>", // razorpay key id from env (pass it in render!)
+          amount: order.amount,
+          currency: order.currency,
+          name: "YourAppName",
+          description: "Subscription Payment",
+          order_id: order.id,
+          handler: async function (response) {
+            // 3. Verify payment at backend
+            const verifyRes = await fetch('/api/razorpay/verify-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(response),
+            });
+            const verifyData = await verifyRes.json();
+
+            if (verifyData.success) {
+              alert('Payment successful! Subscription activated.');
+              window.location.href = '/dashboard';
+            } else {
+              alert('Payment verification failed.');
+            }
+          },
+          prefill: {
+            name: "<%= user.firstName || user.displayName %>",
+            email: "<%= user.email %>",
+          },
+          theme: {
+            color: "#528FF0"
+          },
+        };
+
+        // 4. Open Razorpay checkout
+        const rzp = new Razorpay(options);
+        rzp.open();
+
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+  </script>
+</body>
+</html>

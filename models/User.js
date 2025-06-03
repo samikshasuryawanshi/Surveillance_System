@@ -1,8 +1,27 @@
 const mongoose = require('mongoose');
+
+
+
 const UserSchema = new mongoose.Schema({
-  username: String,
-  email: { type: String, unique: true },
-  password: String,
-  subscribed: { type: Boolean, default: false }
+
+  googleId: String,
+
+  displayName: String,
+
+  email: String,
+
+  photo: String,
+
+  isSubscribed: {
+
+    type: Boolean,
+
+    default: false, // false = Free user
+
+  },
+
 });
+
+
+
 module.exports = mongoose.model('User', UserSchema);

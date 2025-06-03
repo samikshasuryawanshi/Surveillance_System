@@ -1,28 +1,61 @@
+// File: controllers/videoController.js
 const Video = require('../models/Video');
-const multer = require('multer');
-const path = require('path');
 
-const storage = multer.diskStorage({
-  destination: 'uploads/',
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}_${file.originalname}`);
+// Upload video handler
+const uploadVideo = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No video file uploaded' });
+    }
+
+    // Simulate URL from uploaded file
+    const videoUrl = `/uploads/${req.file.originalname}`;
+
+    const newVideo = new Video({
+      title: req.body.title || req.file.originalname,
+      url: videoUrl,
+      description: req.body.description || '',
+    });
+
+    await newVideo.save();
+
+    res.status(201).json({ message: 'Video uploaded successfully', video: newVideo });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error uploading video' });
   }
-});
-const upload = multer({ storage });
-
-exports.uploadMiddleware = upload.single('video');
-
-exports.uploadVideo = async (req, res) => {
-  const video = await Video.create({
-    userId: req.user._id,
-    deviceId: req.body.deviceId,
-    path: req.file.path,
-    timestamp: new Date()
-  });
-  res.json(video);
 };
 
-exports.getVideos = async (req, res) => {
-  const videos = await Video.find({ userId: req.user._id });
-  res.json(videos);
+// List all videos handler
+const listVideos = async (req, res) => {
+  try {
+    const videos = await Video.find().sort({ createdAt: -1 });
+    res.json(videos);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error fetching videos' });
+  }
+};
+
+// Stream video handler (basic example)
+const streamVideo = async (req, res) => {
+  try {
+    const videoId = req.params.videoId;
+    const video = await Video.findById(videoId);
+    if (!video) {
+      return res.status(404).json({ message: 'Video not found' });
+    }
+
+    // Redirect to video URL (demo only)
+    res.redirect(video.url);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error streaming video' });
+  }
+};
+
+module.exports = {
+  uploadVideo,
+  listVideos,
+  streamVideo,
 };
